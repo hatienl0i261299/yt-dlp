@@ -1836,6 +1836,7 @@ from .ufctv import (
 )
 from .ukcolumn import UkColumnIE
 from .uktvplay import UKTVPlayIE
+from .dailywire import DailyWireIE
 from .digiteka import DigitekaIE
 from .dlive import (
     DLiveVODIE,
