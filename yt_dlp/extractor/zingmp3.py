@@ -55,6 +55,14 @@ class ZingMp3BaseIE(InfoExtractor):
         'top-podcast': '/api/v2/podcast/program/get/top-episode',
     }
 
+    _REGION_ID = {
+        "all": "all",
+        "vpop": "IWZ9Z08I",
+        "usuk": "IWZ9Z08O",
+        "kpop": "IWZ9Z08W",
+        "other": "other",
+    }
+
     def _api_url(self, url_type, params):
         api_slug = self._API_SLUGS[url_type]
         params.update({'ctime': '1'})
@@ -433,11 +441,65 @@ class ZingMp3UserIE(ZingMp3BaseIE):
         },
         'playlist_mincount': 50,
     }, {
+        'url': 'https://zingmp3.vn/new-release/song?filter=all',
+        'info_dict': {
+            'id': 'new-release-song',
+        },
+        'playlist_mincount': 50,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/song?filter=kpop',
+        'info_dict': {
+            'id': 'new-release-song',
+        },
+        'playlist_mincount': 12,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/song?filter=usuk',
+        'info_dict': {
+            'id': 'new-release-song',
+        },
+        'playlist_mincount': 10,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/song?filter=vpop',
+        'info_dict': {
+            'id': 'new-release-song',
+        },
+        'playlist_mincount': 50,
+    }, {
         'url': 'https://zingmp3.vn/new-release/album',
         'info_dict': {
             'id': 'new-release-album',
         },
         'playlist_mincount': 20,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/album?filter=all',
+        'info_dict': {
+            'id': 'new-release-album',
+        },
+        'playlist_mincount': 40,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/album?filter=vpop',
+        'info_dict': {
+            'id': 'new-release-album',
+        },
+        'playlist_mincount': 14,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/album?filter=usuk',
+        'info_dict': {
+            'id': 'new-release-album',
+        },
+        'playlist_mincount': 15,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/album?filter=kpop',
+        'info_dict': {
+            'id': 'new-release-album',
+        },
+        'playlist_mincount': 13,
+    }, {
+        'url': 'https://zingmp3.vn/new-release/album?filter=OTHER',
+        'info_dict': {
+            'id': 'new-release-album',
+        },
+        'playlist_mincount': 1,
     }]
 
     def _fetch_page(self, user_id, url_type, page):
@@ -449,20 +511,33 @@ class ZingMp3UserIE(ZingMp3BaseIE):
             'count': self._PER_PAGE
         })
 
+    def _parse_items_by_genre(self, items, region_id):
+        for item in items:
+            genre_ids = item.get('genreIds')
+            if (
+                (region_id == "other" and len([i for i in genre_ids if i in self._REGION_ID.values()]))
+                or region_id in genre_ids
+                or region_id == "all"
+            ):
+                yield self.url_result(urljoin(self._DOMAIN, item.get('link')))
+
     def _real_extract(self, url):
         alias, url_type = self._match_valid_url(url).group('user', 'type')
         if not url_type:
             url_type = 'bai-hat'
 
-        user_info = self._call_api('info-artist', {}, alias, query={'alias': alias})
-
-        # Handle for new-release
         if alias == 'new-release' and url_type in ('song', 'album'):
+            # Handle for new-release
+            parse_result = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            new_release_filter = traverse_obj(parse_result, ('filter', 0), default="all")
+            region_id = self._REGION_ID[new_release_filter.lower()]
             _id = f'{alias}-{url_type}'
-            return self.playlist_result(self._parse_items(
-                self._call_api('new-release', params={'type': url_type}, display_id=_id)), _id)
+            items = self._parse_items_by_genre(
+                self._call_api('new-release', params={'type': url_type}, display_id=_id), region_id)
+            return self.playlist_result(items, _id)
         else:
             # Handle for user/artist
+            user_info = self._call_api('info-artist', {}, alias, query={'alias': alias})
             if url_type in ('bai-hat', 'video'):
                 entries = self._paged_list(user_info['id'], url_type)
             else:
