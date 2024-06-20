@@ -9,7 +9,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 from test.helper import FakeYDL, report_warning
-from yt_dlp.update import Updater, UpdateInfo
+from yt_dlp.update import UpdateInfo, Updater
+
+
+# XXX: Keep in sync with yt_dlp.update.UPDATE_SOURCES
+TEST_UPDATE_SOURCES = {
+    'stable': 'yt-dlp/yt-dlp',
+    'nightly': 'yt-dlp/yt-dlp-nightly-builds',
+    'master': 'yt-dlp/yt-dlp-master-builds',
+}
 
 TEST_API_DATA = {
     'yt-dlp/yt-dlp/latest': {
@@ -70,11 +78,11 @@ TEST_API_DATA = {
 
 TEST_LOCKFILE_COMMENT = '# This file is used for regulating self-update'
 
-TEST_LOCKFILE_V1 = r'''%s
+TEST_LOCKFILE_V1 = rf'''{TEST_LOCKFILE_COMMENT}
 lock 2022.08.18.36 .+ Python 3\.6
 lock 2023.11.16 (?!win_x86_exe).+ Python 3\.7
 lock 2023.11.16 win_x86_exe .+ Windows-(?:Vista|2008Server)
-''' % TEST_LOCKFILE_COMMENT
+'''
 
 TEST_LOCKFILE_V2_TMPL = r'''%s
 lockV2 yt-dlp/yt-dlp 2022.08.18.36 .+ Python 3\.6
@@ -90,12 +98,12 @@ TEST_LOCKFILE_V2 = TEST_LOCKFILE_V2_TMPL % TEST_LOCKFILE_COMMENT
 
 TEST_LOCKFILE_ACTUAL = TEST_LOCKFILE_V2_TMPL % TEST_LOCKFILE_V1.rstrip('\n')
 
-TEST_LOCKFILE_FORK = r'''%s# Test if a fork blocks updates to non-numeric tags
+TEST_LOCKFILE_FORK = rf'''{TEST_LOCKFILE_ACTUAL}# Test if a fork blocks updates to non-numeric tags
 lockV2 fork/yt-dlp pr0000 .+ Python 3.6
 lockV2 fork/yt-dlp pr1234 (?!win_x86_exe).+ Python 3\.7
 lockV2 fork/yt-dlp pr1234 win_x86_exe .+ Windows-(?:Vista|2008Server)
 lockV2 fork/yt-dlp pr9999 .+ Python 3.11
-''' % TEST_LOCKFILE_ACTUAL
+'''
 
 
 class FakeUpdater(Updater):
@@ -104,6 +112,7 @@ class FakeUpdater(Updater):
 
     _channel = 'stable'
     _origin = 'yt-dlp/yt-dlp'
+    _update_sources = TEST_UPDATE_SOURCES
 
     def _download_update_spec(self, *args, **kwargs):
         return TEST_LOCKFILE_ACTUAL

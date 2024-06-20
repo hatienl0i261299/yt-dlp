@@ -6,6 +6,7 @@ from ..utils import (
     int_or_none,
     smuggle_url,
     traverse_obj,
+    try_call,
     unsmuggle_url,
 )
 
@@ -96,14 +97,23 @@ class LiTVIE(InfoExtractor):
             r'uiHlsUrl\s*=\s*testBackendData\(([^;]+)\);',
             webpage, 'video data', default='{}'), video_id)
         if not video_data:
-            payload = {
-                'assetId': program_info['assetId'],
-                'watchDevices': program_info['watchDevices'],
-                'contentType': program_info['contentType'],
-            }
+            payload = {'assetId': program_info['assetId']}
+            puid = try_call(lambda: self._get_cookies('https://www.litv.tv/')['PUID'].value)
+            if puid:
+                payload.update({
+                    'type': 'auth',
+                    'puid': puid,
+                })
+                endpoint = 'getUrl'
+            else:
+                payload.update({
+                    'watchDevices': program_info['watchDevices'],
+                    'contentType': program_info['contentType'],
+                })
+                endpoint = 'getMainUrlNoAuth'
             video_data = self._download_json(
-                'https://www.litv.tv/vod/ajax/getMainUrlNoAuth', video_id,
-                data=json.dumps(payload).encode('utf-8'),
+                f'https://www.litv.tv/vod/ajax/{endpoint}', video_id,
+                data=json.dumps(payload).encode(),
                 headers={'Content-Type': 'application/json'})
 
         if not video_data.get('fullpath'):
@@ -111,8 +121,8 @@ class LiTVIE(InfoExtractor):
             if error_msg == 'vod.error.outsideregionerror':
                 self.raise_geo_restricted('This video is available in Taiwan only')
             if error_msg:
-                raise ExtractorError('%s said: %s' % (self.IE_NAME, error_msg), expected=True)
-            raise ExtractorError('Unexpected result from %s' % self.IE_NAME)
+                raise ExtractorError(f'{self.IE_NAME} said: {error_msg}', expected=True)
+            raise ExtractorError(f'Unexpected result from {self.IE_NAME}')
 
         formats = self._extract_m3u8_formats(
             video_data['fullpath'], video_id, ext='mp4',
